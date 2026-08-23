@@ -1,0 +1,40 @@
+{
+  "name": "Alimentatore PC (Generico)",
+  "description": "Regole di convalida per alimentatori ATX, SFX, TFX o server",
+  "priority": 5,
+  "fast_path_triggers": [
+    "alimentatore",
+    "psu",
+    "power supply",
+    "alimentatori"
+  ],
+  "report_config": {
+    "sort_by": "price_asc",
+    "columns": [
+      { "header": "Modello Alimentatore", "value": "**{detectedModel}**" },
+      { "header": "Brand", "value": "{brand}" },
+      { "header": "Form Factor", "value": "`{formFactor}`" },
+      { "header": "Potenza", "value": "**{detectedWattage}W**" },
+      { "header": "Certificazione 80 PLUS", "value": "**{detectedCertification}**" },
+      { "header": "Anno Produzione", "value": "{detectedProductionYear}" },
+      { "header": "Fonte", "value": "{sourceBadge}" },
+      { "header": "Prezzo", "value": "**{price} {currency}**" },
+      { "header": "Link", "value": "[Vedi Annuncio]({url})" }
+    ]
+  },
+  "rules": "FORM FACTOR & SPECIFICATIONS:\n- ACCEPT: Standalone Power Supply Units (PSU) in standard ATX, SFX, SFX-L, TFX, Flex-ATX or server module formats matching all requested specifications.\n- REJECT: Complete computers, preassembled servers, workstations where the PSU is only listed as part of the description, empty PC cases, PSU testers, loose fans, or generic accessories.\n- CERTIFICATION COMPLIANCE: If the user searches for specific 80 PLUS certifications (e.g. Gold, Platinum, Titanium), REJECT any PSU where the certification is unknown, unverified, or does not match.",
+  "deterministic_filters": {
+    "exclude_keywords": [
+      "case logic",
+      "borsa",
+      "sleeve",
+      "tester psu",
+      "tester alimentatore",
+      "ventola",
+      "cavo riser",
+      "staffa",
+      "adattatore psu",
+      "griglia ventola"
+    ]
+  }
+}

@@ -3,7 +3,7 @@
     "subito-scraper": {
       "command": "/opt/homebrew/bin/node",
       "args": [
-        "/Users/olindo/prj/oli-II-Hands-searcher-mcp-server/packages/subito-scraper/dist/index.js"
+        "/Users/olindo/prj/oli-II-Hands-searcher-mcp-server/packages/subito-scraper/dist/bin.js"
       ],
       "env": {
         "APIFY_TOKEN": "YOUR_APIFY_TOKEN",

@@ -16,3 +16,10 @@ Il server richiede un token Apify per eseguire l'Actor `azzouzana/subito-scraper
 1. Copiare `.env.example` in `.env` (alla radice o in `packages/subito-scraper/.env`)
 2. Impostare `APIFY_TOKEN=il_tuo_token`
 3. Il token viene caricato automaticamente tramite `dotenv`.
+
+## Regola di Compilazione Post-Modifica
+
+⚠️ **IMPORTANTE**: Alla fine di ogni sessione di modifiche al codice (specialmente file TypeScript `.ts` sotto `packages/`), l'assistente DEVE:
+1. **Ricompilare l'intero progetto**: Eseguire sempre il comando `npm run build` alla radice del progetto per rigenerare le cartelle `dist/`.
+2. **Riavviare il server MCP**: Verificare se il processo demone dell'MCP server è in esecuzione in background (es. usando `ps aux | grep subito-scraper` o `index.js`), e in caso affermativo terminarlo (es. `kill <pid>`) per fare in modo che l'IDE lo ricarichi alla chiamata successiva con la nuova build.
+

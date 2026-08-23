@@ -29,7 +29,7 @@ export interface ListingItem {
   [key: string]: any;
 }
 
-export interface AiInspectionVerdict {
+export interface BaseInspectionVerdict {
   listingId: string;
   title: string;
   url: string;
@@ -38,19 +38,48 @@ export interface AiInspectionVerdict {
   brand: string;
   status: 'ACCEPTED' | 'REJECTED';
   formFactor: string;
-  detectedGeneration: string;
-  detectedCapacityGB: number | null;
-  detectedPartNumber: string | null;
-  detectedSerialNumber?: string | null;
   detectedModel?: string | null;
-  smartHealth?: string | null;
   infoSource?: 'PHOTO_LABEL_OCR' | 'PHOTO_SMART' | 'PHOTO_VISION' | 'TEXT_FALLBACK' | 'DETERMINISTIC_RULE';
-  pricePerGB: number | null;
   rejectionReason: string | null;
   evidence: string;
   photoUrl?: string;
   photoUrls?: string[];
   inspectionMethod?: 'DETERMINISTIC_RULE' | 'VISION_AI' | 'TEXT_AI';
+}
+
+export interface RamInspectionVerdict extends BaseInspectionVerdict {
+  detectedGeneration: string;
+  detectedCapacityGB: number | null;
+  detectedPartNumber: string | null;
+  pricePerGB: number | null;
+}
+
+export interface SsdInspectionVerdict extends BaseInspectionVerdict {
+  detectedGeneration: string;
+  detectedCapacityGB: number | null;
+  detectedPartNumber: string | null;
+  detectedSerialNumber: string | null;
+  smartHealth: string | null;
+}
+
+export interface PsuInspectionVerdict extends BaseInspectionVerdict {
+  detectedWattage: number | null;
+  detectedCertification: string | null;
+  detectedProductionYear: number | null;
+  detectedSerialNumber?: string | null;
+}
+
+export interface AiInspectionVerdict extends BaseInspectionVerdict {
+  detectedGeneration?: string;
+  detectedCapacityGB?: number | null;
+  detectedPartNumber?: string | null;
+  detectedSerialNumber?: string | null;
+  smartHealth?: string | null;
+  pricePerGB?: number | null;
+  
+  detectedWattage?: number | null;
+  detectedCertification?: string | null;
+  detectedProductionYear?: number | null;
 }
 
 export interface AiMetrics {
@@ -242,6 +271,19 @@ function applyDeterministicFilters(
       return {
         rejected: true,
         reason: `Filtro rapido: rilevato componente non SSD NVMe ("${nonSsdMatch[0]}")`,
+        formFactor: 'ACCESSORY_OTHER'
+      };
+    }
+  }
+
+  // PSU specific deterministic filters
+  const isPsuTarget = ruleModuleId.startsWith('psu') || (context?.targetQuery && /alimentatore|psu|power supply/i.test(context.targetQuery));
+  if (isPsuTarget) {
+    const pcMatch = fullText.match(/\b(pc gaming|pc completo|computer completo|computer fisso|gaming rig|workstation|server da rack|server rack|poweredge|proliant)\b/i);
+    if (pcMatch && !/solo alimentatore|solo psu/i.test(fullText)) {
+      return {
+        rejected: true,
+        reason: `Filtro rapido: rilevato sistema completo o assemblato ("${pcMatch[0]}")`,
         formFactor: 'ACCESSORY_OTHER'
       };
     }
@@ -528,6 +570,7 @@ export async function inspectListingsWithAi(
   const globalInst = getGlobalInstructions();
   const isNvme = ruleModuleId === 'nvme';
   const isRam = ruleModuleId === 'ram' || ruleModuleId === 'ram_ddr5';
+  const isPsu = ruleModuleId.startsWith('psu');
 
   const specificRulesText = compRule ? `[${compRule.name}]\n${compRule.rules}` : 'Applica massima cautela e verifica rigida.';
   const globalRulesText = Array.isArray(globalInst.global_instructions) 
@@ -542,7 +585,7 @@ export async function inspectListingsWithAi(
 
   logAudit(`\n[AI Inspector] ========================================`);
   logAudit(`[AI Inspector] 🚀 Inizio ispezione su ${normalized.length} annunci scaricati`);
-  logAudit(`[AI Inspector] 🎯 Target: ${options.targetQuery || (isNvme ? 'SSD NVMe M.2' : 'RAM DDR5 Desktop UDIMM')}${isRam ? ` | Limite: ${maxPricePerGB} €/GB` : ''}`);
+  logAudit(`[AI Inspector] 🎯 Target: ${options.targetQuery || (isNvme ? 'SSD NVMe M.2' : (isPsu ? 'Alimentatore PC' : 'RAM DDR5 Desktop UDIMM'))}${isRam ? ` | Limite: ${maxPricePerGB} €/GB` : ''}`);
   logAudit(`[AI Inspector] ⚙️ Engine: ${baseUrl} (${model}) | Modulo: ${ruleModuleId}`);
   if (options.apifyStats?.computeUnits !== undefined) {
     logAudit(`[AI Inspector] ⚡ Scraper Apify: ${(options.apifyStats.durationMillis ? (options.apifyStats.durationMillis / 1000).toFixed(1) + 's' : 'N/D')} | Compute Units: ${options.apifyStats.computeUnits.toFixed(4)} CU`);
@@ -641,99 +684,171 @@ export async function inspectListingsWithAi(
   let totalAiDurationSec = 0;
 
   if (candidatesForAi.length > 0) {
+    const targetQueryLower = (options.targetQuery || '').toLowerCase();
+    const isEnglishQuery = /power\s*supply|psu|gold|platinum|titanium|ram|desktop|laptop|ssd|nvme/i.test(targetQueryLower) && 
+                           !/alimentatore|platino|oro|titanio|memoria|disco/i.test(targetQueryLower);
+
+    const outputLanguageInstruction = isEnglishQuery
+      ? "MANDATORY: You must write the JSON fields 'rejectionReason' and 'evidence' in English."
+      : "MANDATORY: You must write the JSON fields 'rejectionReason' and 'evidence' in Italian (Italiano).";
+
     let systemPrompt = '';
 
     if (isNvme) {
-      systemPrompt = `Sei un verificatore hardware esperto specializzato in unità SSD M.2 PCIe NVMe e diagnostica disco (SMART / CrystalDiskInfo).
+      systemPrompt = `You are an expert hardware verifier specialized in M.2 PCIe NVMe SSDs and drive diagnostics (SMART / CrystalDiskInfo).
 
-REGOLE GLOBALI:
+GLOBAL RULES:
 ${globalRulesText}
 
-REGOLE COMPONENTE:
+COMPONENT RULES:
 ${specificRulesText}
 
-OBIETTIVO UTENTE:
-- Target: ${options.targetQuery || 'SSD NVMe M.2'}
+USER TARGET:
+- Target: ${options.targetQuery || 'M.2 NVMe SSD'}
 
-GERARCHIA DI PRECEDENZA DELLE FONTI (OBBLIGATORIA):
-1. FASE 1 (FOTO / OCR - MASSIMA AUTORITÀ):
-   - Esamina tutte le foto alla ricerca dell'etichetta del drive SSD M.2 o screenshot SMART (CrystalDiskInfo, Samsung Magician, smartctl).
-   - Estrai con la massima precisione possibile:
-     * detectedModel: modello esatto (es. "Samsung PM9A1", "WD Black SN770", "Crucial P3 Plus", "Micron 2300")
-     * detectedPartNumber: codice P/N o Model Code (es. "MZVL2512HCJQ-00000", "WDS500G3X0E")
-     * detectedSerialNumber: seriale S/N (es. "S676NF0R123456", "23412E801923")
-     * detectedCapacityGB: capacità (es. 512, 500, 1000, 1024, 2000, 2048)
-     * smartHealth: percentuale di salute ed eventuali ore d'uso se visibili nello screenshot SMART (es. "100% (1h uso)", "96%", "90%")
+SOURCE PRECEDENCE HIERARCHY (MANDATORY):
+1. PHASE 1 (PHOTO / OCR - MAXIMUM AUTHORITY):
+   - Examine all photos looking for the M.2 SSD drive label or SMART screenshot (CrystalDiskInfo, Samsung Magician, smartctl).
+   - Extract with maximum precision:
+     * detectedModel: exact model (e.g. "Samsung PM9A1", "WD Black SN770", "Crucial P3 Plus", "Micron 2300")
+     * detectedPartNumber: P/N or Model Code (e.g. "MZVL2512HCJQ-00000", "WDS500G3X0E")
+     * detectedSerialNumber: S/N serial number (e.g. "S676NF0R123456", "23412E801923")
+     * detectedCapacityGB: capacity (e.g. 512, 500, 1000, 1024, 2000, 2048)
+     * smartHealth: health percentage and usage hours if visible in the SMART screenshot (e.g. "100% (1h use)", "96%", "90%")
      * formFactor: "M2_2280" | "M2_2242" | "M2_2230" | "SATA_M2" | "UNKNOWN"
-   - Se questi dati sono visibili nelle foto, usa questi dati certi e imposta infoSource su 'PHOTO_LABEL_OCR' (se da etichetta disco) o 'PHOTO_SMART' (se da schermata SMART).
+   - If this data is visible in the photos, use this verified data and set infoSource to 'PHOTO_LABEL_OCR' (if from drive label) or 'PHOTO_SMART' (if from SMART screenshot).
 
-2. FASE 2 (FALLBACK SU TESTO/DESCRIZIONE):
-   - SOLO SE nelle foto l'etichetta è assente, parziale o illeggibile, estrai modello e capacità dal titolo e testo dell'inserzione.
-   - In questo caso imposta infoSource su 'TEXT_FALLBACK'.
+2. PHASE 2 (TEXT/DESCRIPTION FALLBACK):
+   - ONLY IF the label in the photos is absent, partial, or unreadable, extract the model and capacity from the listing title and description.
+   - In this case, set infoSource to 'TEXT_FALLBACK'.
 
-CRITERI DI CONVALIDA:
-- Imposta status 'ACCEPTED' per SSD M.2 NVMe PCIe validi.
-- Imposta status 'REJECTED' se si tratta di HDD meccanico, SSD SATA (2.5" o M.2 B+M key), solo box/adattatore vuoto o prodotto non conforme.
+VALIDATION CRITERIA:
+- Verify if the item complies with the user's requested target specifications (e.g. capacity limits). Set status to 'ACCEPTED' only if all requirements are satisfied.
+- Set status to 'REJECTED' if it is a mechanical HDD, SATA SSD (2.5" or M.2 B+M key), empty enclosure/adapter only, or any non-compliant product.
 
-RISPONDI ESCLUSIVAMENTE IN JSON:
+RESPOND EXCLUSIVELY IN JSON:
 {
   "results": [
     {
       "listingId": "string",
-      "status": "ACCEPTED" | "REJECTED",
       "formFactor": "M2_2280" | "M2_2242" | "M2_2230" | "SATA_M2" | "UNKNOWN",
       "detectedGeneration": "NVMe" | "SATA" | "OTHER",
-      "detectedModel": "string o null",
-      "detectedPartNumber": "string o null",
-      "detectedSerialNumber": "string o null",
-      "detectedCapacityGB": number o null,
-      "smartHealth": "string o null",
+      "detectedModel": "string or null",
+      "detectedPartNumber": "string or null",
+      "detectedSerialNumber": "string or null",
+      "detectedCapacityGB": number or null,
+      "smartHealth": "string or null",
       "infoSource": "PHOTO_LABEL_OCR" | "PHOTO_SMART" | "PHOTO_VISION" | "TEXT_FALLBACK",
-      "rejectionReason": "string o null se ACCEPTED",
-      "evidence": "prova con riferimento alla foto o al testo"
+      "evidence": "evidence from photo/OCR/text",
+      "rejectionReason": "string or null if ACCEPTED",
+      "status": "ACCEPTED" | "REJECTED"
+    }
+  ]
+}`;
+    } else if (isPsu) {
+      systemPrompt = `You are an expert hardware verifier with advanced visual analysis/OCR capabilities.
+Determine for each listing if it is a standalone PC Power Supply Unit (PSU) that complies with the user's target specifications.
+
+GLOBAL RULES:
+${globalRulesText}
+
+COMPONENT RULES:
+${specificRulesText}
+
+USER TARGET:
+- Target: ${options.targetQuery || 'PC Power Supply (PSU)'}
+
+SOURCE PRECEDENCE HIERARCHY (MANDATORY):
+1. PHASE 1 (PHOTO / OCR - MAXIMUM AUTHORITY):
+   - Examine all photos looking for the PSU technical specifications label (DC/AC output table or main sticker) or the box.
+   - Extract with maximum precision:
+     * detectedBrand: Brand of the PSU (e.g. "Seasonic", "Corsair", "EVGA", "Cooler Master")
+     * detectedModel: Exact model (e.g. "Focus GX-550", "SF750", "Supernova 650 P2")
+     * detectedWattage: Nominal PSU power in Watts as a number (e.g. 400, 650, 750, 1000). Look for text like "Total Power: 400W" or "400Watts".
+     * detectedCertification: 80 PLUS certification visible on the sticker or logo (Platinum, Gold, Titanium, Bronze, Silver, White, or UNKNOWN).
+     * detectedProductionYear: Manufacturing year if indicated on the sticker (e.g. "DOM: 2021", "Year: 2022") or deducible from the Serial Number (S/N) if typical prefixes are known.
+     * detectedSerialNumber: Serial number or unique identifier code (e.g. "S/N: 2110...", "R1204...").
+     * formFactor: "ATX" | "SFX" | "SFX-L" | "TFX" | "FLEX-ATX" | "SERVER_HOT_PLUG" | "UNKNOWN"
+   - If this data is visible in the photos, set infoSource to 'PHOTO_LABEL_OCR'.
+
+2. PHASE 2 (TEXT/DESCRIPTION FALLBACK):
+   - ONLY IF the label in the photos is absent, partial, or unreadable, extract the model, wattage, certification, and year of purchase/production from the listing title and description.
+   - In this case, set infoSource to 'TEXT_FALLBACK'.
+
+STRICT VALIDATION CRITERIA:
+1. EVALUATION OF THE LISTING SUBJECT (FUNDAMENTAL):
+   - You must determine with certainty if the listing primarily sells a standalone power supply (single loose or boxed component).
+   - If the listing sells an entire computer (gaming PC, desktop computer, workstation, mini PC, server) where the PSU is simply listed as part of the build, you MUST set "status": "REJECTED" and explain why in "rejectionReason" (e.g., "Rilevato computer completo o assemblato" or equivalent translated reason). Do not accept under any circumstances, even if the described PSU matches the target.
+   - If the listing describes a bundle or lot of multiple components (e.g., "motherboard + cpu + power supply"), set "status": "REJECTED".
+
+2. TARGET SPECIFICATIONS COMPLIANCE & ZERO ASSUMPTIONS:
+   - Carefully evaluate all user target specifications (e.g. maximum wattage limits like "max 400W", required 80 Plus certifications like "gold or platinum", specific form factors).
+   - Pay special attention to logical conjunctions like "or" (e.g. "gold or platinum" means either certification is acceptable).
+   - MANDATORY CERTIFICATION RULE: If the user target requests specific 80 PLUS certifications (e.g. "gold", "platinum", "titanium"), you MUST set "status": "REJECTED" for any item where the certification is "UNKNOWN", missing, or not clearly verified from the label, box, or description. DO NOT accept unverified or UNKNOWN certification items when a specific certification tier is requested.
+   - MANDATORY WATTAGE RULE: If a maximum wattage limit is requested (e.g. "max 400 watt"), any PSU exceeding that wattage MUST be set to "status": "REJECTED".
+   - Set "status": "ACCEPTED" ONLY if the item is a standalone PSU and positively satisfies ALL requested user criteria with verified evidence. Otherwise, set "status": "REJECTED" and explain the exact missing or non-compliant specification in "rejectionReason".
+
+RESPOND EXCLUSIVELY IN JSON:
+{
+  "results": [
+    {
+      "listingId": "string",
+      "formFactor": "ATX" | "SFX" | "SFX-L" | "TFX" | "FLEX-ATX" | "SERVER_HOT_PLUG" | "UNKNOWN",
+      "detectedBrand": "string or null",
+      "detectedModel": "string or null",
+      "detectedWattage": number or null,
+      "detectedCertification": "Platinum" | "Gold" | "Titanium" | "Bronze" | "Silver" | "White" | "UNKNOWN",
+      "detectedProductionYear": number or null,
+      "detectedSerialNumber": "string or null",
+      "infoSource": "PHOTO_LABEL_OCR" | "PHOTO_VISION" | "TEXT_FALLBACK",
+      "evidence": "evidence from photo/OCR/text",
+      "rejectionReason": "explicit reason if rejected or non-compliant, otherwise null",
+      "status": "ACCEPTED" | "REJECTED"
     }
   ]
 }`;
     } else {
-      systemPrompt = `Sei un verificatore hardware esperto con capacità di analisi visiva/OCR avanzata.
-Determina per ciascun annuncio se si tratta di memoria RAM Desktop (UDIMM / DIMM a 288 pin) o laptop (SO-DIMM a 262 pin) e verifica capacità (GB) e prezzo unitario.
+      systemPrompt = `You are an expert hardware verifier with advanced visual analysis/OCR capabilities.
+Determine for each listing if it is Desktop RAM (UDIMM / 288-pin DIMM) or laptop RAM (SO-DIMM / 262-pin) and verify the capacity (GB) and unit price.
 
-REGOLE GLOBALI:
+GLOBAL RULES:
 ${globalRulesText}
 
-REGOLE COMPONENTE:
+COMPONENT RULES:
 ${specificRulesText}
 
-OBIETTIVO UTENTE:
-- Target: ${options.targetQuery || 'RAM DDR5 Desktop UDIMM a 288 pin'}
-- Prezzo massimo al GB: ${maxPricePerGB} EUR/GB
+USER TARGET:
+- Target: ${options.targetQuery || '288-pin Desktop UDIMM DDR5 RAM'}
+- Maximum price per GB: ${maxPricePerGB} EUR/GB
 
-CRITERI RIGIDI:
-1. FORM FACTOR & PIN:
-   - Se dalle foto o dall'etichetta risulta SO-DIMM (modulo corto da laptop ~70mm, 262 pin, es. codici Samsung M425..., Hynix HMCG66...), imposta status: 'REJECTED' e formFactor: 'SODIMM_LAPTOP'.
-   - Imposta formFactor: 'UDIMM_DESKTOP' SOLO se è un modulo lungo standard per PC Desktop (288 pin, es. codici Samsung M378..., Hynix HMCG78...).
-2. CAPACITÀ:
-   - Estrai la capacità in GB con certezza da testo o OCR etichetta.
-3. CONVALIDA:
-   - Imposta status: 'ACCEPTED' SOLO SE formFactor è 'UDIMM_DESKTOP' E (Prezzo / Capacità) <= ${maxPricePerGB} EUR/GB.
+STRICT CRITERIA:
+1. FORM FACTOR & PINS:
+   - If the photos or label show SO-DIMM (short laptop module ~70mm, 262 pins, e.g. Samsung M425..., Hynix HMCG66... codes), set status: 'REJECTED' and formFactor: 'SODIMM_LAPTOP'.
+   - Set formFactor: 'UDIMM_DESKTOP' ONLY if it is a standard long module for PC Desktop (288 pins, e.g. Samsung M378..., Hynix HMCG78... codes).
+2. CAPACITY:
+   - Extract the capacity in GB with certainty from text or label OCR.
+3. VALIDATION:
+   - Set status: 'ACCEPTED' ONLY IF formFactor is 'UDIMM_DESKTOP' AND (Price / Capacity) <= ${maxPricePerGB} EUR/GB.
 
-RISPONDI ESCLUSIVAMENTE IN JSON:
+RESPOND EXCLUSIVELY IN JSON:
 {
   "results": [
     {
       "listingId": "string",
-      "status": "ACCEPTED" | "REJECTED",
       "formFactor": "UDIMM_DESKTOP" | "SODIMM_LAPTOP" | "ECC_SERVER" | "ACCESSORY_OTHER" | "UNKNOWN",
       "detectedGeneration": "DDR5" | "DDR4" | "DDR3" | "OTHER",
-      "detectedCapacityGB": number o null,
-      "detectedPartNumber": "string o null",
-      "pricePerGB": number o null,
-      "rejectionReason": "string o null se ACCEPTED",
-      "evidence": "prova certa da foto/OCR/testo"
+      "detectedCapacityGB": number or null,
+      "detectedPartNumber": "string or null",
+      "pricePerGB": number or null,
+      "evidence": "proof from photo/OCR/text",
+      "rejectionReason": "string or null if ACCEPTED",
+      "status": "ACCEPTED" | "REJECTED"
     }
   ]
 }`;
     }
+
+    systemPrompt += `\n\nOUTPUT LANGUAGE RULE:\n${outputLanguageInstruction}`;
 
     // Split candidates into small chunks of 3 items
     const chunkSize = isVisionModel ? 3 : 10;
@@ -742,10 +857,12 @@ RISPONDI ESCLUSIVAMENTE IN JSON:
       chunks.push(candidatesForAi.slice(i, i + chunkSize));
     }
 
-    logAudit(`[AI Inspector] 👁️ Avvio Fase 3: ${chunks.length} chunk di Vision AI in parallelo (concorrenza: 2)...`);
+    const isLocalOllama = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
+    const concurrency = isLocalOllama ? 1 : 2;
+    logAudit(`[AI Inspector] 👁️ Avvio Fase 3: ${chunks.length} chunk di Vision AI ${isLocalOllama ? 'in sequenza (concorrenza: 1 per Ollama)' : 'in parallelo (concorrenza: 2)'}...`);
 
-    // Process chunks with concurrency = 2
-    await asyncPool(2, chunks, async (chunk, chunkIdx) => {
+    // Process chunks with dynamic concurrency
+    await asyncPool(concurrency, chunks, async (chunk, chunkIdx) => {
       logAudit(`[AI Inspector] 🔍 Chunk ${chunkIdx + 1}/${chunks.length} (${chunk.length} annunci)...`);
 
       // 1. Fetch images in parallel for all items in chunk
@@ -841,6 +958,24 @@ RISPONDI ESCLUSIVAMENTE IN JSON:
           rejectionReason = 'Non conforme ai requisiti SSD NVMe o specifiche non verificate';
         }
       }
+    } else if (isPsu) {
+      const targetQueryLower = (options.targetQuery || '').toLowerCase();
+      const requiresGoldOrPlat = /gold|oro|platinum|platino|titanium|titanio/i.test(targetQueryLower);
+      const isCertMatch = !requiresGoldOrPlat || (
+        aiVerdict.detectedCertification === 'Gold' ||
+        aiVerdict.detectedCertification === 'Platinum' ||
+        aiVerdict.detectedCertification === 'Titanium'
+      );
+      
+      const isPsuValid = isCertMatch && !aiVerdict.rejectionReason;
+      status = (aiVerdict.status === 'ACCEPTED' && isPsuValid) ? 'ACCEPTED' : 'REJECTED';
+      if (!rejectionReason && status === 'REJECTED') {
+        if (!isCertMatch) {
+          rejectionReason = 'Certificazione 80 PLUS richiesta non verificata o assente (UNKNOWN)';
+        } else {
+          rejectionReason = 'Does not comply with PSU specifications or validation failed';
+        }
+      }
     } else {
       const isStrictDesktop = aiVerdict.formFactor === 'UDIMM_DESKTOP' && 
         !/sodimm|so-dimm|so dimm|laptop|notebook|portatile/i.test(aiVerdict.evidence || '') &&
@@ -869,10 +1004,10 @@ RISPONDI ESCLUSIVAMENTE IN JSON:
       url: cand.url,
       price: cand.price,
       currency: cand.currency,
-      brand: cand.brand || (aiVerdict.detectedModel ? aiVerdict.detectedModel.split(' ')[0] : 'N/D'),
+      brand: cand.brand || aiVerdict.detectedBrand || (aiVerdict.detectedModel ? aiVerdict.detectedModel.split(' ')[0] : 'N/D'),
       status,
       formFactor: aiVerdict.formFactor || (isNvme ? 'M2_2280' : 'UNKNOWN'),
-      detectedGeneration: aiVerdict.detectedGeneration || (isNvme ? 'NVMe' : 'DDR5'),
+      detectedGeneration: aiVerdict.detectedGeneration || (isNvme ? 'NVMe' : (isPsu ? (aiVerdict.detectedCertification || 'UNKNOWN') : 'DDR5')),
       detectedCapacityGB: capacityGB,
       detectedPartNumber: aiVerdict.detectedPartNumber || null,
       detectedSerialNumber: aiVerdict.detectedSerialNumber || null,
@@ -884,7 +1019,12 @@ RISPONDI ESCLUSIVAMENTE IN JSON:
       evidence: aiVerdict.evidence || (isVisionModel ? 'Verificato tramite Vision OCR' : 'Verificato tramite AI testuale'),
       photoUrl: cand.photoUrl,
       photoUrls: cand.photoUrls,
-      inspectionMethod: isVisionModel ? 'VISION_AI' : 'TEXT_AI'
+      inspectionMethod: isVisionModel ? 'VISION_AI' : 'TEXT_AI',
+      
+      // PSU Specific Fields
+      detectedWattage: typeof aiVerdict.detectedWattage === 'number' ? aiVerdict.detectedWattage : null,
+      detectedCertification: aiVerdict.detectedCertification || null,
+      detectedProductionYear: typeof aiVerdict.detectedProductionYear === 'number' ? aiVerdict.detectedProductionYear : null
     };
   });
 
@@ -914,7 +1054,12 @@ function formatReportCell(template: string, item: AiInspectionVerdict): string {
     smartHealth: item.smartHealth ? `🟢 ${item.smartHealth}` : 'N/D',
     pricePerGB: item.pricePerGB ? item.pricePerGB.toFixed(2) : 'N/D',
     sourceBadge,
-    evidence: item.evidence || 'Verificato'
+    evidence: item.evidence || 'Verificato',
+    
+    // PSU Specific
+    detectedWattage: item.detectedWattage !== null && item.detectedWattage !== undefined ? `${item.detectedWattage}` : 'N/D',
+    detectedCertification: item.detectedCertification || 'N/D',
+    detectedProductionYear: item.detectedProductionYear !== null && item.detectedProductionYear !== undefined ? `${item.detectedProductionYear}` : 'N/D'
   };
 
   let out = template;
@@ -991,14 +1136,26 @@ function formatReportCell(template: string, item: AiInspectionVerdict): string {
             { header: 'Part Number / Note', value: '`{detectedPartNumber}`' },
             { header: 'Link', value: '[Vedi Annuncio]({url})' }
           ]
-        : [
-            { header: 'Modello / Titolo', value: '[{title}]({url})' },
-            { header: 'Brand', value: '{brand}' },
-            { header: 'Form Factor', value: '`{formFactor}`' },
-            { header: 'Prezzo', value: '**{price} {currency}**' },
-            { header: 'Note / Prova', value: '{evidence}' },
-            { header: 'Link', value: '[Vedi Annuncio]({url})' }
-          ]);
+        : (isPsu
+          ? [
+              { header: 'Modello / Titolo', value: '[{detectedModel}]({url})' },
+              { header: 'Brand', value: '{brand}' },
+              { header: 'Form Factor', value: '`{formFactor}`' },
+              { header: 'Potenza', value: '**{detectedWattage}W**' },
+              { header: 'Certificazione 80 PLUS', value: '**{detectedCertification}**' },
+              { header: 'Anno Produzione', value: '{detectedProductionYear}' },
+              { header: 'Fonte', value: '{sourceBadge}' },
+              { header: 'Prezzo', value: '**{price} {currency}**' },
+              { header: 'Link', value: '[Vedi Annuncio]({url})' }
+            ]
+          : [
+              { header: 'Modello / Titolo', value: '[{title}]({url})' },
+              { header: 'Brand', value: '{brand}' },
+              { header: 'Form Factor', value: '`{formFactor}`' },
+              { header: 'Prezzo', value: '**{price} {currency}**' },
+              { header: 'Note / Prova', value: '{evidence}' },
+              { header: 'Link', value: '[Vedi Annuncio]({url})' }
+            ]));
 
     const columns = (reportConfig?.columns && reportConfig.columns.length > 0)
       ? reportConfig.columns

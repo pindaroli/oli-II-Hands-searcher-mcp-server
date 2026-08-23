@@ -6,8 +6,9 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "mcp-server-subito-scraper": "./dist/index.js",
-    "subito-scraper-mcp": "./dist/index.js"
+    "mcp-server-subito-scraper": "./dist/bin.js",
+    "subito-scraper-mcp": "./dist/bin.js",
+    "subito-scraper-batch": "./dist/batch-cli.js"
   },
   "files": [
     "dist",
@@ -15,12 +16,14 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc && chmod +x dist/index.js",
+    "build": "tsc && chmod +x dist/bin.js dist/batch-cli.js",
     "watch": "tsc --watch",
     "test": "tsx test/smoke-test.ts",
+    "test:local": "tsx test/local.test.ts",
     "test:mcp": "npm run build && tsx test/test-mcp-client.ts",
-    "start": "node dist/index.js",
-    "dev": "tsx src/index.ts",
+    "start": "node dist/bin.js",
+    "dev": "tsx src/bin.ts",
+    "search-batch": "tsx src/batch-cli.ts",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -40,11 +43,16 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
     "apify-client": "^2.11.8",
+    "axios": "^1.19.0",
+    "bottleneck": "^2.19.5",
+    "cheerio": "^1.2.0",
     "dotenv": "^16.4.7",
+    "lru-cache": "^7.18.3",
     "shared-mcp-utils": "file:../shared-mcp-utils",
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@types/cheerio": "^0.22.35",
     "@types/node": "^22.13.4",
     "tsx": "^4.19.3",
     "typescript": "^5.7.3"

@@ -3,7 +3,7 @@
     "subito-scraper": {
       "command": "/opt/homebrew/bin/node",
       "args": [
-        "/Users/olindo/prj/oli-II-Hands-searcher-mcp-server/packages/subito-scraper/dist/index.js"
+        "/Users/olindo/prj/oli-II-Hands-searcher-mcp-server/packages/subito-scraper/dist/bin.js"
       ],
       "env": {
         "APIFY_TOKEN": "YOUR_APIFY_TOKEN",
@@ -11,8 +11,8 @@
         "AI_VISION_ENABLED": "true",
         "AI_BASE_URL": "http://localhost:11434/v1",
         "AI_API_KEY": "ollama",
-        "AI_MODEL": "qwen2.5vl",
-        "MAX_AI_INSPECTIONS": "20"
+        "AI_MODEL": "qwen2.5vl:32b",
+        "MAX_AI_INSPECTIONS": "21"
       }
     },
     "vinted-scraper": {

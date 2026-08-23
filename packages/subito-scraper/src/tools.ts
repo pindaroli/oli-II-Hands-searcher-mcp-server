@@ -1,12 +1,12 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import {
-  runSubitoScraper,
   getDatasetItems,
   checkApifyStatus,
   formatApifyError,
   SUBITO_ACTOR_ID
 } from './apify.js';
+import { scrapeSubito } from './engine.js';
 import { buildSubitoSearchUrl } from './url-builder.js';
 import { inspectListingsWithAi, getAiConfig, resolveRuleModuleId } from 'shared-mcp-utils';
 
@@ -110,7 +110,7 @@ export function registerTools(server: McpServer): void {
     },
     async ({ searchUrl, maxItems, timeoutSecs, token }) => {
       try {
-        const result = await runSubitoScraper({
+        const result = await scrapeSubito({
           searchUrl,
           maxItems,
           timeoutSecs,
@@ -125,9 +125,23 @@ export function registerTools(server: McpServer): void {
 
         if (shouldRunAi && result.items.length > 0) {
           try {
+            let effectiveModuleId = 'nvme';
+            let extractedQuery = searchUrl;
+            try {
+              const urlObj = new URL(searchUrl);
+              const qParam = urlObj.searchParams.get('q');
+              if (qParam) {
+                extractedQuery = qParam;
+                effectiveModuleId = await resolveRuleModuleId(qParam, undefined);
+              }
+            } catch (urlErr) {
+              console.error('[Subito Scraper] Failed to parse query from searchUrl:', urlErr);
+            }
+
             aiResult = await inspectListingsWithAi(result.items, {
-              targetQuery: searchUrl,
-              maxItemsToInspect: maxItems
+              targetQuery: extractedQuery,
+              ruleModuleId: effectiveModuleId,
+              maxItemsToInspect: Math.min(maxItems, aiConfig.maxInspections || 20)
             });
             finalReport = aiResult.markdownReport;
           } catch (aiErr: any) {
@@ -260,7 +274,7 @@ export function registerTools(server: McpServer): void {
           sortBy
         });
 
-        const result = await runSubitoScraper({
+        const result = await scrapeSubito({
           searchUrl,
           maxItems,
           timeoutSecs,
@@ -280,7 +294,7 @@ export function registerTools(server: McpServer): void {
               targetQuery: query,
               maxPricePerGB,
               ruleModuleId: effectiveModuleId,
-              maxItemsToInspect: maxItems,
+              maxItemsToInspect: Math.min(maxItems, aiConfig.maxInspections || 20),
               apifyStats: result.stats,
               datasetUrl: result.datasetUrl
             });

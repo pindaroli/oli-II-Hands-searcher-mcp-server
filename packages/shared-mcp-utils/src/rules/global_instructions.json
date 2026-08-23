@@ -1,10 +1,10 @@
 {
   "max_visual_inspections": 30,
   "global_instructions": [
-    "1. ANALISI DEL CORPO DEL TESTO & METADATI: Estrai tutte le informazioni tecniche, descrizioni, note e URL slug dall'annuncio, senza limitarti al solo titolo.",
-    "2. ISPEZIONE MULTI-FOTO & SUFFICIENZA PROVE: Ispeziona attentamente tutte le immagini fornite nell'annuncio. BASTA CHE ALMENO UNA FOTO (o la combinazione coerente di foto, titolo e descrizione) mostri chiaramente l'etichetta del produttore, il Part Number (P/N), o il form factor compatibile per considerarlo valido.",
-    "3. GESTIONE FOTO NON NITIDE: La presenza di singole fotografie sfocate, parziali o raffiguranti solo la confezione NON deve causare lo scarto dell'annuncio se le altre foto o i dettagli tecnici forniti sono conformi.",
-    "4. CRITERI DI SCARTO CATEGORICO: SCARTA l'annuncio SOLO se TUTTE le foto e le descrizioni sono completamente illeggibili/insufficienti, oppure se dalle foto o dal testo emerge inequivocabilmente che si tratta di un prodotto non conforme (es. form factor incompatibile come SO-DIMM laptop, generazione diversa, GPU/scheda video, accessorio o prezzo per unità superiore al limite).",
-    "5. REPORT STRUTTURATO: Genera una classificazione chiara con Prezzo, Prezzo Unitario (es. €/GB), Condizione, Part Number rilevato/verificato e Link diretto."
+    "1. TEXT BODY & METADATA ANALYSIS: Extract all technical information, descriptions, notes, and URL slugs from the listing, do not limit yourself only to the title.",
+    "2. MULTI-PHOTO INSPECTION & EVIDENCE SUFFICIENCY: Carefully inspect all images provided in the listing. IT IS SUFFICIENT THAT AT LEAST ONE PHOTO (or a coherent combination of photos, title, and description) clearly shows the manufacturer's label, Part Number (P/N), or compatible form factor to consider it valid.",
+    "3. HANDLING BLURRY/UNCLEAR PHOTOS: The presence of single blurry, partial photographs, or photos showing only the retail box MUST NOT cause the listing to be rejected if other photos or the provided technical details are compliant.",
+    "4. CATEGORICAL REJECTION CRITERIA: REJECT the listing ONLY if ALL photos and descriptions are completely unreadable/insufficient, or if it unequivocally emerges from the photos or text that the product is non-compliant (e.g. incompatible form factor like SO-DIMM laptop, different generation, GPU/graphics card, accessory, or unit price exceeding the limit).",
+    "5. STRUCTURED REPORT: Generate a clear classification with Price, Unit Price (e.g. €/GB), Condition, detected/verified Part Number, and direct Link."
   ]
 }

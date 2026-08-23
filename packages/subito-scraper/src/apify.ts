@@ -45,6 +45,11 @@ export function resolveApifyToken(explicitToken?: string): string {
   return token.trim();
 }
 
+export function hasApifyToken(explicitToken?: string): boolean {
+  const token = explicitToken || process.env.APIFY_TOKEN || process.env.APIFY_API_TOKEN;
+  return !!token && token.trim().length > 0;
+}
+
 /**
  * Creates an instance of ApifyClient with the specified or resolved token
  */

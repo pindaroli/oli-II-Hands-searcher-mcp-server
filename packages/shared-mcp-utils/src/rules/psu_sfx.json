@@ -20,8 +20,11 @@
       { "header": "Modello Alimentatore", "value": "**{detectedModel}**" },
       { "header": "Brand", "value": "{brand}" },
       { "header": "Form Factor", "value": "`SFX / SFX-L`" },
+      { "header": "Potenza", "value": "**{detectedWattage}W**" },
+      { "header": "Certificazione 80 PLUS", "value": "**{detectedCertification}**" },
+      { "header": "Anno Produzione", "value": "{detectedProductionYear}" },
+      { "header": "Fonte", "value": "{sourceBadge}" },
       { "header": "Prezzo", "value": "**{price} {currency}**" },
-      { "header": "Note / Evidenza", "value": "{evidence}" },
       { "header": "Link", "value": "[Vedi Annuncio]({url})" }
     ]
   },
