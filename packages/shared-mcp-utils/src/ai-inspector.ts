@@ -765,7 +765,11 @@ SOURCE PRECEDENCE HIERARCHY (MANDATORY):
      * detectedBrand: Brand of the PSU (e.g. "Seasonic", "Corsair", "EVGA", "Cooler Master")
      * detectedModel: Exact model (e.g. "Focus GX-550", "SF750", "Supernova 650 P2")
      * detectedWattage: Nominal PSU power in Watts as a number (e.g. 400, 650, 750, 1000). Look for text like "Total Power: 400W" or "400Watts".
-     * detectedCertification: 80 PLUS certification visible on the sticker or logo (Platinum, Gold, Titanium, Bronze, Silver, White, or UNKNOWN).
+     * detectedCertification: 80 PLUS certification tier visible on the sticker or logo: "Titanium" | "Platinum" | "Gold" | "Silver" | "Bronze" | "White" | "UNKNOWN".
+       CRITICAL 80 PLUS TIER RULES:
+       - Generic "80 PLUS" or "80 PLUS 230V EU" without a metal color corresponds strictly to "White" (standard base tier), NEVER to "Gold" or "Platinum".
+       - Models like "be quiet! System Power 8" or generic "80 PLUS ATX" are "White", NOT Gold.
+       - Set detectedCertification to "Gold" or "Platinum" ONLY if the word "Gold" / "Platinum" or the distinct Gold/Platinum logo is explicitly present.
      * detectedProductionYear: Manufacturing year if indicated on the sticker (e.g. "DOM: 2021", "Year: 2022") or deducible from the Serial Number (S/N) if typical prefixes are known.
      * detectedSerialNumber: Serial number or unique identifier code (e.g. "S/N: 2110...", "R1204...").
      * formFactor: "ATX" | "SFX" | "SFX-L" | "TFX" | "FLEX-ATX" | "SERVER_HOT_PLUG" | "UNKNOWN"
@@ -784,7 +788,7 @@ STRICT VALIDATION CRITERIA:
 2. TARGET SPECIFICATIONS COMPLIANCE & ZERO ASSUMPTIONS:
    - Carefully evaluate all user target specifications (e.g. maximum wattage limits like "max 400W", required 80 Plus certifications like "gold or platinum", specific form factors).
    - Pay special attention to logical conjunctions like "or" (e.g. "gold or platinum" means either certification is acceptable).
-   - MANDATORY CERTIFICATION RULE: If the user target requests specific 80 PLUS certifications (e.g. "gold", "platinum", "titanium"), you MUST set "status": "REJECTED" for any item where the certification is "UNKNOWN", missing, or not clearly verified from the label, box, or description. DO NOT accept unverified or UNKNOWN certification items when a specific certification tier is requested.
+   - MANDATORY CERTIFICATION RULE: If the user target requests specific 80 PLUS certifications (e.g. "gold", "platinum", "titanium"), you MUST set "status": "REJECTED" for any item where the certification is "White", "Bronze", "Silver", "UNKNOWN", missing, or not clearly verified from the label, box, or description. DO NOT assume or infer Gold/Platinum from generic "80 Plus" labels.
    - MANDATORY WATTAGE RULE: If a maximum wattage limit is requested (e.g. "max 400 watt"), any PSU exceeding that wattage MUST be set to "status": "REJECTED".
    - Set "status": "ACCEPTED" ONLY if the item is a standalone PSU and positively satisfies ALL requested user criteria with verified evidence. Otherwise, set "status": "REJECTED" and explain the exact missing or non-compliant specification in "rejectionReason".
 

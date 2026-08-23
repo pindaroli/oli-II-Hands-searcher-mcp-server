@@ -22,7 +22,7 @@
       { "header": "Link", "value": "[Vedi Annuncio]({url})" }
     ]
   },
-  "rules": "FORM FACTOR & SPECIFICATIONS:\n- ACCEPT: Standalone Power Supply Units (PSU) in standard ATX, SFX, SFX-L, TFX, Flex-ATX or server module formats matching all requested specifications.\n- REJECT: Complete computers, preassembled servers, workstations where the PSU is only listed as part of the description, empty PC cases, PSU testers, loose fans, or generic accessories.\n- CERTIFICATION COMPLIANCE: If the user searches for specific 80 PLUS certifications (e.g. Gold, Platinum, Titanium), REJECT any PSU where the certification is unknown, unverified, or does not match.",
+  "rules": "FORM FACTOR & SPECIFICATIONS:\n- ACCEPT: Standalone Power Supply Units (PSU) in standard ATX, SFX, SFX-L, TFX, Flex-ATX or server module formats matching all requested specifications.\n- REJECT: Complete computers, preassembled servers, workstations where the PSU is only listed as part of the description, empty PC cases, PSU testers, loose fans, or generic accessories.\n- CERTIFICATION COMPLIANCE: If the user searches for specific 80 PLUS certifications (e.g. Gold, Platinum, Titanium), REJECT any PSU where the certification is unknown, unverified, White, Bronze, Silver, or does not match. Generic '80 PLUS' or '80 PLUS 230V EU' is 'White', NOT Gold.",
   "deterministic_filters": {
     "exclude_keywords": [
       "case logic",
