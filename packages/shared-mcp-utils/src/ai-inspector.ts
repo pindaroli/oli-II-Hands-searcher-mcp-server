@@ -613,7 +613,7 @@ export async function inspectListingsWithAi(
         brand: item.brand,
         status: 'REJECTED',
         formFactor: filterResult.formFactor || 'UNKNOWN',
-        detectedGeneration: isNvme ? 'NVMe' : 'DDR5',
+        detectedGeneration: isNvme ? 'NVMe' : (isRam ? 'RAM' : (isPsu ? 'PSU' : 'OTHER')),
         detectedCapacityGB: null,
         detectedPartNumber: null,
         detectedSerialNumber: null,
@@ -647,7 +647,7 @@ export async function inspectListingsWithAi(
         brand: extra.brand,
         status: 'REJECTED',
         formFactor: 'UNKNOWN',
-        detectedGeneration: isNvme ? 'NVMe' : 'DDR5',
+        detectedGeneration: isNvme ? 'NVMe' : (isRam ? 'RAM' : (isPsu ? 'PSU' : 'OTHER')),
         detectedCapacityGB: null,
         detectedPartNumber: null,
         detectedSerialNumber: null,
@@ -1179,7 +1179,10 @@ function formatReportCell(template: string, item: AiInspectionVerdict): string {
     rejected.forEach((item, i) => {
       const reasonStr = item.rejectionReason || 'Non conforme';
       const methodStr = item.inspectionMethod === 'DETERMINISTIC_RULE' ? '⚡ Pre-Filtro JSON' : (item.inspectionMethod === 'VISION_AI' ? '👁️ Vision OCR' : '📝 AI Testo');
-      report += `| **${i + 1}** | [${item.title}](${item.url}) | ${item.price.toFixed(2)} ${item.currency} | \`${item.formFactor}\` (${item.detectedGeneration}) | ${reasonStr} | ${methodStr} | [Link](${item.url}) |\n`;
+      const subDetail = isPsu 
+        ? (item.detectedCertification || 'N/D') 
+        : (item.detectedGeneration || 'N/D');
+      report += `| **${i + 1}** | [${item.title}](${item.url}) | ${item.price.toFixed(2)} ${item.currency} | \`${item.formFactor}\` (${subDetail}) | ${reasonStr} | ${methodStr} | [Link](${item.url}) |\n`;
     });
     report += `\n`;
   }
